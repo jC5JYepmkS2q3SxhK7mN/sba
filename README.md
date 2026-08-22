@@ -17,18 +17,20 @@
 
 * * *
 ## 更新信息
+2026.08.22 v1.1.8 1. Download robustness: Added integrity validation and retry for sing-box downloads, preventing aborts on incomplete downloads (e.g. gzip/tar errors); 2. Dynamic WARP account: install now registers a fresh WARP account with fallback to the shared account on failure; 3. Silent OpenRC output: hide OpenRC start/stop process messages, showing only the final result; 1. 下载健壮性增强：为 sing-box 下载增加完整性校验与重试，避免下载不完整导致 gzip/tar 报错退出; 2. 动态获取 WARP 账户：安装时动态注册新 WARP 账户，注册失败回退共享账户; 3. 静默 OpenRC 输出：隐藏 OpenRC 启停过程信息，仅展示最终结果
+
 2025.12.11 v1.1.7 Argo tunnel creation via API --- Automatically completed: Create tunnel > DNS configuration > Origin settings. Thanks to [zmlu] for providing the method: https://raw.githubusercontent.com/zmlu/sba/main/tunnel.sh; Argo 隧道新增通过 API 创建 --- 自动完成：创建隧道 > DNS 配置 > 回源设置。感谢热心网友 [zmlu] 提供的方法: https://raw.githubusercontent.com/zmlu/sba/main/tunnel.sh
-
-2025.12.09 v1.1.6 Quick Install Mode: Added a one-click installation feature that auto-fills all parameters, simplifying the deployment process. Chinese users can use -l or -L; English users can use -k or -K. Case-insensitive support makes operations more flexible; 极速安装模式：新增一键安装功能，所有参数自动填充，简化部署流程。中文用户使用 -l 或 -L，英文用户使用 -k 或 -K，大小写均支持，操作更灵活
-
-2025.11.10 v1.1.5 Replace multiplex with xtls-rprx-vision flow control in reality configuration; 在 reality 配置中将多路复用 multiplex 替换为 xtls-rprx-vision 流控
-
-2025.04.26 v1.1.4 1. Added the ability to change CDNs online using [sb -d]; 2. Use OpenRC on Alpine to replace systemctl (Python3-compatible version); 3. Handle CentOS firewall port management; 4. Change GitHub proxy; 5. Optimize code; 1. 新增使用 [sb -d] 在线更换 CDN 功能; 2. 在 Alpine 系统中使用 OpenRC 取代兼容 Python3 的 systemctl 实现; 3. 处理 CentOS 防火墙端口管理; 4. 更换 GitHub 代理; 5. 优化代码
 
 <details>
     <summary>历史更新 history（点击即可展开或收起）</summary>
 <br>
 
+>2025.12.09 v1.1.6 Quick Install Mode: Added a one-click installation feature that auto-fills all parameters, simplifying the deployment process. Chinese users can use -l or -L; English users can use -k or -K. Case-insensitive support makes operations more flexible; 极速安装模式：新增一键安装功能，所有参数自动填充，简化部署流程。中文用户使用 -l 或 -L，英文用户使用 -k 或 -K，大小写均支持，操作更灵活
+>
+>2025.11.10 v1.1.5 Replace multiplex with xtls-rprx-vision flow control in reality configuration; 在 reality 配置中将多路复用 multiplex 替换为 xtls-rprx-vision 流控
+>
+>2025.04.26 v1.1.4 1. Added the ability to change CDNs online using [sb -d]; 2. Use OpenRC on Alpine to replace systemctl (Python3-compatible version); 3. Handle CentOS firewall port management; 4. Change GitHub proxy; 5. Optimize code; 1. 新增使用 [sb -d] 在线更换 CDN 功能; 2. 在 Alpine 系统中使用 OpenRC 取代兼容 Python3 的 systemctl 实现; 3. 处理 CentOS 防火墙端口管理; 4. 更换 GitHub 代理; 5. 优化代码
+>
 >2025.03.25 v1.1.3 Compatible with Sing-box 1.12.0-alpha.18+; 适配 Sing-box 1.12.0-alpha.18+
 >
 >2025.01.28 v1.1.2 1. Add server-side time synchronization configuration; 2. Replace some CDNs; 1. 添加服务端时间同步配置; 2. 替换某些 CDN

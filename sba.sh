@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # 当前脚本版本号
-VERSION='1.1.7 (2026.07.28)'
+VERSION='1.1.8 (2026.08.22)'
 
 # 各变量默认值，Github 反代加速代理，第一个为空相当于直连
 GITHUB_PROXY=('' 'https://v6.gh-proxy.org/' 'https://gh-proxy.com/' 'https://hub.glowp.xyz/' 'https://proxy.vvvv.ee/' 'https://ghproxy.lvedong.eu.org/')
@@ -13,7 +13,7 @@ CDN_DOMAIN=("skk.moe" "ip.sb" "time.is" "cfip.xxxxxxxx.tk" "bestcf.top" "cdn.202
 SUBSCRIBE_TEMPLATE="https://raw.githubusercontent.com/fscarmen/client_template/main"
 NGINX_PORT='3010'
 METRICS_PORT='3014'
-DEFAULT_NEWEST_VERSION='1.13.0-rc.4'
+DEFAULT_NEWEST_VERSION='1.14.0-beta.17'
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -23,8 +23,8 @@ mkdir -p $TEMP_DIR
 
 E[0]="Language:\n 1. English (default) \n 2. 简体中文"
 C[0]="${E[0]}"
-E[1]="1. Argo tunnel creation via API --- Automatically completed: Create tunnel > DNS configuration > Origin settings. Thanks to [zmlu] for providing the method: https://raw.githubusercontent.com/zmlu/sba/main/tunnel.sh; 2. Quick Install Mode: Added a one-click installation feature that auto-fills all parameters, simplifying the deployment process. Chinese users can use -l or -L; English users can use -k or -K. Case-insensitive support makes operations more flexible."
-C[1]="1. Argo 隧道新增通过 API 创建 --- 自动完成：创建隧道 > DNS 配置 > 回源设置。感谢热心网友 [zmlu] 提供的方法: https://raw.githubusercontent.com/zmlu/sba/main/tunnel.sh; 2. 极速安装模式：新增一键安装功能，所有参数自动填充，简化部署流程。中文用户使用 -l 或 -L，英文用户使用 -k 或 -K，大小写均支持，操作更灵活"
+E[1]="1. Download robustness: Added integrity validation and retry for sing-box downloads, preventing aborts on incomplete downloads (e.g. gzip/tar errors); 2. Dynamic WARP account: install now registers a fresh WARP account with fallback to the shared account on failure; 3. Silent OpenRC output: hide OpenRC start/stop process messages, showing only the final result."
+C[1]="1. 下载健壮性增强：为 sing-box 下载增加完整性校验与重试，避免下载不完整导致 gzip/tar 报错退出; 2. 动态获取 WARP 账户：安装时动态注册新 WARP 账户，注册失败回退共享账户）; 3. 静默 OpenRC 输出：隐藏 OpenRC 启停过程信息，仅展示最终结果"
 E[2]="Project to create Argo tunnels and Sing-box specifically for VPS, detailed:[https://github.com/fscarmen/sba]\n Features:\n\t • Allows the creation of Argo tunnels via Token, Json and ad hoc methods. User can easily obtain the json at https://fscarmen.cloudflare.now.cc .\n\t • Extremely fast installation method, saving users time.\n\t • Support system: Ubuntu, Debian, CentOS, Alpine and Arch Linux 3.\n\t • Support architecture: AMD,ARM and s390x\n"
 C[2]="本项目专为 VPS 添加 Argo 隧道及 Sing-Box,详细说明: [https://github.com/fscarmen/sba]\n 脚本特点:\n\t • 允许通过 Token, Json 及 临时方式来创建 Argo 隧道,用户通过以下网站轻松获取 json: https://fscarmen.cloudflare.now.cc\n\t • 极速安装方式,大大节省用户时间\n\t • 智能判断操作系统: Ubuntu 、Debian 、CentOS 、Alpine 和 Arch Linux,请务必选择 LTS 系统\n\t • 支持硬件结构类型: AMD 和 ARM\n"
 E[3]="Input errors up to 5 times.The script is aborted."
@@ -519,8 +519,27 @@ check_install() {
   [[ ${STATUS[1]} = "$(text 26)" ]] && [ ! -s $WORK_DIR/sing-box ] &&
   {
     local SING_BOX_LATEST=$(get_sing_box_version)
-    wget --no-check-certificate -c -qO- ${GH_PROXY}https://github.com/SagerNet/sing-box/releases/download/v$SING_BOX_LATEST/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH.tar.gz -qO- | tar xz -C $TEMP_DIR sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH/sing-box
-    mv $TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH/sing-box $TEMP_DIR >/dev/null 2>&1
+    # 直接使用文件路径，避免引入过多变量；有 gzip 则快速预校验，没有也不强制安装，由 tar 解压退出码兜底
+    local SB_URL
+    for TRY in 1 2 3; do
+      # 第2次起去掉代理直连，绕开损坏的镜像
+      SB_URL="${GH_PROXY}https://github.com/SagerNet/sing-box/releases/download/v$SING_BOX_LATEST/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH.tar.gz"
+      [ "$TRY" -ge 2 ] && SB_URL="https://github.com/SagerNet/sing-box/releases/download/v$SING_BOX_LATEST/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH.tar.gz"
+      rm -f "$TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH.tar.gz" "$TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH"
+      wget --no-check-certificate --timeout=60 --tries=2 --waitretry=3 -qO "$TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH.tar.gz" "$SB_URL" 2>/dev/null || { sleep 3; continue; }
+      # 防止 wget 被中止/中断时返回 0 但文件未生成或为空，先强判存在且非空
+      [ -s "$TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH.tar.gz" ] || { sleep 3; continue; }
+      # 有 gzip 时先用它快速校验完整性（坏包直接清理并重试）；无论有无 gzip，tar 解压退出码都是最终兜底校验
+      if command -v gzip >/dev/null 2>&1 && ! gzip -t "$TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH.tar.gz" 2>/dev/null; then rm -f "$TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH.tar.gz"; sleep 3; continue; fi
+      # tar 解压：下载不完整/损坏时 tar 返回非零，落到重试
+      tar xzf "$TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH.tar.gz" -C "$TEMP_DIR" "sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH/sing-box" 2>/dev/null || { sleep 3; continue; }
+      [ -s "$TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH/sing-box" ] || { sleep 3; continue; }
+      chmod +x "$TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH/sing-box"
+      mv "$TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH/sing-box" "$TEMP_DIR" >/dev/null 2>&1
+      rm -rf "$TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH" "$TEMP_DIR/sing-box-$SING_BOX_LATEST-linux-$SING_BOX_ARCH.tar.gz"
+      break
+    done
+    # 三次重试后仍未成功属环境问题（如仅 IPv6-warp 出口拉取 GitHub 不稳），交给后续流程暴露明确报错
     wget --no-check-certificate --continue -qO $TEMP_DIR/jq ${GH_PROXY}https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-$JQ_ARCH >/dev/null 2>&1 && chmod +x $TEMP_DIR/jq >/dev/null 2>&1
     wget --no-check-certificate --continue -qO $TEMP_DIR/qrencode ${GH_PROXY}https://github.com/fscarmen/client_template/raw/main/qrencode-go/qrencode-go-linux-$QRENCODE_ARCH >/dev/null 2>&1 && chmod +x $TEMP_DIR/qrencode >/dev/null 2>&1
   }&
@@ -542,10 +561,10 @@ cmd_systemctl() {
   local APP=$2
   if [ "$ENABLE_DISABLE" = 'enable' ]; then
     if [ "$SYSTEM" = 'Alpine' ]; then
-      # 使用 openrc 启动服务
-      rc-service $APP start
+      # 使用 openrc 启动服务（静默，只由调用方返回最终结果）
+      rc-service $APP start >/dev/null 2>&1
       # 添加到开机启动
-      rc-update add $APP default
+      rc-update add $APP default >/dev/null 2>&1
     elif [ "$IS_CENTOS" = 'CentOS7' ]; then
       systemctl daemon-reload
       systemctl enable --now $APP
@@ -557,10 +576,10 @@ cmd_systemctl() {
 
   elif [ "$ENABLE_DISABLE" = 'disable' ]; then
     if [ "$SYSTEM" = 'Alpine' ]; then
-      # 使用 openrc 停止服务
-      rc-service $APP stop
+      # 使用 openrc 停止服务（静默，只由调用方返回最终结果）
+      rc-service $APP stop >/dev/null 2>&1
       # 从开机启动中移除
-      rc-update del $APP default
+      rc-update del $APP default >/dev/null 2>&1
     elif [ "$IS_CENTOS" = 'CentOS7' ]; then
       systemctl disable --now $APP
       [[ "$APP" = 'sing-box' && "$IS_NGINX" = 'is_nginx' ]] && [ -s $WORK_DIR/nginx.conf ] && { nginx_stop; firewall_configuration close; }
@@ -615,17 +634,19 @@ check_system_info() {
   fi
 
   # 判断虚拟化
-  if [ -x "$(type -p systemd-detect-virt)" ]; then
+  if [ "$SYSTEM" = 'Alpine' ]; then
+    command -v virt-what >/dev/null 2>&1 || ${PACKAGE_INSTALL[int]} virt-what >/dev/null 2>&1
+    command -v virt-what >/dev/null 2>&1 && VIRT=$(virt-what | sed -n 1p) || VIRT=unknown
+  elif command -v systemd-detect-virt >/dev/null 2>&1; then
     VIRT=$(systemd-detect-virt)
+  elif command -v hostnamectl >/dev/null 2>&1; then
+    VIRT=$(hostnamectl | awk '/Virtualization/{print $NF}')
   elif grep -qa container= /proc/1/environ 2>/dev/null; then
     VIRT=$(tr '\0' '\n' </proc/1/environ | awk -F= '/container=/{print $2; exit}')
   elif grep -Eq '(lxc|docker|kubepods|containerd)' /proc/1/cgroup 2>/dev/null; then
     VIRT=$(grep -Eo '(lxc|docker|kubepods|containerd)' /proc/1/cgroup | sed -n 1p)
-  elif [ -x "$(type -p hostnamectl)" ]; then
-    VIRT=$(hostnamectl | awk '/Virtualization/{print $NF}')
   else
-    [ -x "$(type -p virt-what)" ] && ${PACKAGE_INSTALL[int]} virt-what >/dev/null 2>&1
-    [ -x "$(type -p virt-what)" ] && VIRT=$(virt-what | sed -n 1p) || VIRT=unknown
+    VIRT=unknown
   fi
 }
 
@@ -677,6 +698,37 @@ get_sing_box_version() {
     fi
   fi
   echo "$RESULT_VERSION"
+}
+
+# 获取 WARP 账户并解析到全局变量 WARP_ADDRESS6 / WARP_PRIVATE_KEY / WARP_RESERVED[1..3]
+# $1 为空则在线注册；非空则直接解析该 JSON（如安装期后台预注册的缓存）
+# 返回 0 成功 / 1 失败；失败时调用方自行兜底（回退共享账户）
+warp_account_register() {
+  local WARP_ACCOUNT="$1"
+  [ -n "$WARP_ACCOUNT" ] || WARP_ACCOUNT=$(timeout 15 bash <(wget -qO- --timeout=5 --tries=1 "https://gitlab.com/fscarmen/warp/-/raw/main/api.sh") --register)
+
+  grep -q '"id"' <<< "$WARP_ACCOUNT" || return 1
+
+  WARP_ADDRESS6=$(awk -F'"' '/"v6":/ && $4 !~ /^\[/ {print $4}' <<< "$WARP_ACCOUNT")
+  WARP_PRIVATE_KEY=$(awk -F'"' '/"private_key"/{print $4}' <<< "$WARP_ACCOUNT")
+  WARP_RESERVED[1]=$(awk '/"reserved":/ {getline; gsub(/[^0-9]/, ""); print}' <<< "$WARP_ACCOUNT")
+  WARP_RESERVED[2]=$(awk '/"reserved":/ {getline; getline; gsub(/[^0-9]/, ""); print}' <<< "$WARP_ACCOUNT")
+  WARP_RESERVED[3]=$(awk '/"reserved":/ {getline; getline; getline; gsub(/[^0-9]/, ""); print}' <<< "$WARP_ACCOUNT")
+
+  if [ -z "$WARP_ADDRESS6" ] || [ -z "$WARP_PRIVATE_KEY" ] || [ -z "${WARP_RESERVED[1]}" ] || [ -z "${WARP_RESERVED[2]}" ] || [ -z "${WARP_RESERVED[3]}" ]; then
+    unset WARP_ADDRESS6 WARP_PRIVATE_KEY WARP_RESERVED
+    return 1
+  fi
+  return 0
+}
+
+# 兜底：注册 WARP 新账户失败时回退到共享账户，保证安装能继续
+warp_account_fallback() {
+  WARP_ADDRESS6="2606:4700:110:8a36:df92:102a:9602:fa18"
+  WARP_PRIVATE_KEY="YFYOAdbw1bKTHlNNi+aEjBM3BO7unuFC5rOkMRAz9XY="
+  WARP_RESERVED[1]=78
+  WARP_RESERVED[2]=135
+  WARP_RESERVED[3]=76
 }
 
 # 定义 Argo 变量，遇到使用 warp 的话，要求输入正确的 IP
@@ -1386,6 +1438,13 @@ EOF
     ]
 }
 EOF
+  # 获取新的 WARP 账户；优先复用安装期后台预注册的缓存，否则在线注册；均失败回退共享账户
+  unset WARP_ADDRESS6 WARP_PRIVATE_KEY WARP_RESERVED
+  if [ -s $TEMP_DIR/warp_account.json ] && warp_account_register "$(< "$TEMP_DIR/warp_account.json")"; then
+    rm -f "$TEMP_DIR/warp_account.json"
+  elif ! warp_account_register; then
+    warp_account_fallback
+  fi
   cat > $WORK_DIR/sing-box-conf/outbound.json << EOF
 {
     "endpoints": [
@@ -1395,9 +1454,9 @@ EOF
             "mtu": 1280,
             "address": [
                 "172.16.0.2/32",
-                "2606:4700:110:8a36:df92:102a:9602:fa18/128"
+                "${WARP_ADDRESS6}/128"
             ],
-            "private_key": "YFYOAdbw1bKTHlNNi+aEjBM3BO7unuFC5rOkMRAz9XY=",
+            "private_key": "${WARP_PRIVATE_KEY}",
             "peers": [
               {
                 "address": "engage.cloudflareclient.com",
@@ -1408,9 +1467,9 @@ EOF
                   "::/0"
                 ],
                 "reserved": [
-                    78,
-                    135,
-                    76
+                    ${WARP_RESERVED[1]},
+                    ${WARP_RESERVED[2]},
+                    ${WARP_RESERVED[3]}
                 ]
               }
             ]
@@ -1526,7 +1585,12 @@ export_list() {
   [[ ! -s $WORK_DIR/jq && -s /usr/bin/jq ]] && cp /usr/bin/jq $WORK_DIR/
   if [ ! -s $WORK_DIR/qrencode ]; then
     check_arch
-    wget -qO $WORK_DIR/qrencode ${GH_PROXY}https://github.com/fscarmen/client_template/raw/main/qrencode-go/qrencode-go-linux-$QRENCODE_ARCH && chmod +x $WORK_DIR/qrencode
+    # 下载后强校验文件存在且非空；失败则删除，避免留下空/损坏文件骗过下轮的 [ ! -s ] 判断
+    if wget -qO $WORK_DIR/qrencode ${GH_PROXY}https://github.com/fscarmen/client_template/raw/main/qrencode-go/qrencode-go-linux-$QRENCODE_ARCH 2>/dev/null && [ -s $WORK_DIR/qrencode ]; then
+      chmod +x $WORK_DIR/qrencode 2>/dev/null
+    else
+      rm -f $WORK_DIR/qrencode 2>/dev/null
+    fi
   fi
 
   # 没有开启 Argo 和 Sing-box 服务，将不输出节点信息
@@ -1847,7 +1911,7 @@ version() {
 
   [[ ${UPDATE[*],,} =~ 'y' ]] && check_system_info
   if [ ${UPDATE[0],,} = 'y' ]; then
-    wget --no-check-certificate -O $TEMP_DIR/cloudflared ${GH_PROXY}https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$ARGO_ARCH
+    wget --no-check-certificate -O $TEMP_DIR/cloudflared ${GH_PROXY}https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$ARGO_ARCH 2>/dev/null
     if [ -s $TEMP_DIR/cloudflared ]; then
       cmd_systemctl disable argo
       chmod +x $TEMP_DIR/cloudflared && mv $TEMP_DIR/cloudflared $WORK_DIR/cloudflared
@@ -1857,7 +1921,24 @@ version() {
     fi
   fi
   if [ ${UPDATE[1],,} = 'y' ]; then
-    wget --no-check-certificate -c ${GH_PROXY}https://github.com/SagerNet/sing-box/releases/download/v$ONLINE/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz -qO- | tar xz -C $TEMP_DIR sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box
+    # 先下载并校验完整性，避免下载中断导致损坏的压缩包直接喂给 tar 报错退出。
+    # 直接使用文件路径，仅保留 URL 切换变量、循环计数变量；有 gzip 则快速预校验，没有也不强制安装，由 tar 解压退出码兜底
+    local SB_URL
+    for TRY in 1 2 3; do
+      SB_URL="${GH_PROXY}https://github.com/SagerNet/sing-box/releases/download/v$ONLINE/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz"
+      [ "$TRY" -ge 2 ] && SB_URL="https://github.com/SagerNet/sing-box/releases/download/v$ONLINE/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz"
+      rm -rf "$TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz" "$TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH"
+      wget --no-check-certificate --timeout=60 --tries=2 --waitretry=3 -qO "$TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz" "$SB_URL" 2>/dev/null || { sleep 3; continue; }
+      # 防止 wget 被中止/中断时返回 0 但文件未生成或为空，先强判存在且非空
+      [ -s "$TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz" ] || { sleep 3; continue; }
+      # 有 gzip 时先用它快速校验完整性（坏包直接清理并重试）；无论有无 gzip，tar 解压退出码都是最终兜底校验
+      if command -v gzip >/dev/null 2>&1 && ! gzip -t "$TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz" 2>/dev/null; then rm -f "$TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz"; sleep 3; continue; fi
+      # tar 解压：下载不完整/损坏时 tar 返回非零，落到重试
+      tar xzf "$TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz" -C "$TEMP_DIR" "sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box" 2>/dev/null || { sleep 3; continue; }
+      [ -s "$TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box" ] || { sleep 3; continue; }
+      rm -f "$TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz"
+      break
+    done
     if [ -s $TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box ]; then
       cmd_systemctl disable sing-box
       mv $TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box $WORK_DIR
