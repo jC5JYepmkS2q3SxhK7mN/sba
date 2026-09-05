@@ -12,6 +12,7 @@
 - [Argo Token 的获取](README.md#argo-token-的获取)
 - [使用 Cloudflare API 自动创建 Argo](README.md#使用-cloudflare-api-自动创建-argo)
 - [主体目录文件及说明](README.md#主体目录文件及说明)
+- [感谢赞助商](README.md#感谢赞助商)
 - [免责声明](README.md#免责声明)
 - [开源证书](README.md#开源证书)
 
@@ -188,6 +189,19 @@ bash <(wget -qO- https://raw.githubusercontent.com/fscarmen/sba/main/sba.sh) -k
 |-- jq                                       # 命令行 JSON 处理器
 `-- qrencode                                 # QR 码编码二进制文件
 ```
+
+
+### 感谢赞助商
+
+<a href="https://digitalvirt.com" align="left">
+  <img src="https://digitalvirt.com/static/img/logo-dark.svg" alt="Sponsor" width="30%">
+</a>
+
+- 感谢 DigitalVirt 对本项目赞助
+- 官网：https://DigitalVirt.com
+- 群组：https://t.me/DigitalVirtLLC
+- 公告频道：https://DigitalVirt.net
+- 年付优惠码：DigitalVirt/Annually/20FF
 
 
 ## 免责声明:
